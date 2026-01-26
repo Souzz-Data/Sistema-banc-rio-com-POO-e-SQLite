@@ -1,0 +1,7 @@
+# Ignorar arquivos de banco de dados locais
+*.db
+banco.db
+
+# Ignorar arquivos temporários do Python (cache)
+__pycache__/
+*.pyc
