@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auditoria de Atendimento</title>
+<style>
+  :root {
+    --navy: #1b0f4d; --navy-2: #2c1d6e; --bege: #f5e8d2; --bege-2: #fbf4e8;
+    --fundo: #fdfbf5; --texto: #1f1a2e; --suave: #6b6480; --linha: #e6dccb;
+    --vermelho: #c8102e; --verde: #1e7b4f; --ambar: #b7791f; --branco: #fff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--texto);
+         font: 14px/1.45 "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  button, select, input { font: inherit; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
+
+  header.topo { background: var(--navy); color: #fff; }
+  header.topo .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding-top: 12px; padding-bottom: 12px; }
+  header.topo h1 { font-size: 18px; margin: 0; }
+  header.topo small { display: block; color: #c9c2e6; font-size: 12px; }
+  .origens { display: flex; background: rgba(255,255,255,.1); border-radius: 8px; padding: 3px; }
+  .origens button { border: 0; background: transparent; color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+  .origens button.ativo { background: #fff; color: var(--navy); font-weight: 600; }
+  .topo .direita { margin-left: auto; display: flex; gap: 10px; align-items: center; font-size: 12px; color: #c9c2e6; }
+
+  .btn { border: 1px solid var(--navy); background: var(--navy); color: #fff; border-radius: 6px; padding: 6px 12px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { background: var(--navy-2); }
+  .btn.claro { background: #fff; color: var(--navy); }
+  .btn.claro:hover { background: var(--bege-2); }
+  .btn.mini { padding: 3px 9px; font-size: 12px; }
+  .btn.pdf { background: var(--vermelho); border-color: var(--vermelho); }
+  .btn.pdf:hover { background: #a50d26; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  .filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end;
+             background: var(--bege); border-radius: 10px; padding: 12px; }
+  .filtros label { display: block; font-size: 11px; font-weight: 600; color: var(--suave); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }
+  .filtros select, .filtros input { width: 100%; padding: 6px 8px; border: 1px solid var(--linha); border-radius: 6px; background: #fff; color: var(--texto); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+  .kpi { background: #fff; border: 1px solid var(--linha); border-left: 5px solid var(--vermelho); border-radius: 10px; padding: 12px 16px; }
+  .kpi b { display: block; font-size: 28px; color: var(--navy); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: 12px; color: var(--suave); }
+
+  nav.abas { display: flex; gap: 4px; border-bottom: 2px solid var(--linha); margin-bottom: 14px; overflow-x: auto; }
+  nav.abas button { border: 0; background: transparent; padding: 9px 14px; cursor: pointer; color: var(--suave); border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+  nav.abas button.ativo { color: var(--navy); font-weight: 600; border-color: var(--vermelho); }
+
+  .grade { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grade { grid-template-columns: 1fr; } }
+  .card { background: #fff; border: 1px solid var(--linha); border-radius: 10px; padding: 14px; min-width: 0; }
+  .card h2 { font-size: 14px; margin: 0 0 10px; color: var(--navy); display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card h2 small { font-weight: 400; color: var(--suave); }
+  .rolagem { overflow-x: auto; }
+
+  table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.t th { background: var(--navy); color: #fff; text-align: left; padding: 7px 8px; font-weight: 600; white-space: nowrap; }
+  table.t td { padding: 6px 8px; border-bottom: 1px solid var(--linha); vertical-align: middle; }
+  table.t tbody tr:nth-child(even) td { background: var(--bege-2); }
+  table.t tbody tr:hover td { background: #f1e6d3; }
+  table.t .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.t .acoes { white-space: nowrap; text-align: right; }
+  table.t tfoot td { font-weight: 700; border-top: 2px solid var(--navy); }
+
+  .nota { display: inline-block; min-width: 46px; text-align: center; padding: 2px 6px; border-radius: 5px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+  .n-bom { background: var(--verde); } .n-medio { background: var(--ambar); } .n-ruim { background: var(--vermelho); }
+  .barra { height: 8px; background: var(--bege); border-radius: 4px; overflow: hidden; min-width: 60px; }
+  .barra i { display: block; height: 100%; background: var(--navy); }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 12px; background: #eee; }
+  .t-sim { background: #dcefe4; color: var(--verde); } .t-nao { background: #f8dde1; color: var(--vermelho); }
+  .t-parc { background: #f7ead2; color: var(--ambar); } .t-nc { background: #ebe9f0; color: var(--suave); }
+
+  .mapa td.cel { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .ranking .linha { display: grid; grid-template-columns: 130px 1fr 44px; gap: 8px; align-items: center; margin: 5px 0; font-size: 12px; }
+  .ranking .linha span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .ranking .trilho { position: relative; height: 16px; background: var(--bege-2); border-radius: 3px; }
+  .ranking .trilho i { position: absolute; inset: 0 auto 0 0; background: var(--navy); border-radius: 3px; }
+  .ranking .trilho .meta { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dashed var(--vermelho); }
+
+  .vazio { padding: 30px; text-align: center; color: var(--suave); }
+  .aviso-demo { background: #fff4d6; border: 1px solid #f0d68a; color: #6b5310; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+  .carregando { position: fixed; inset: 0; background: rgba(253,251,245,.7); display: none; place-items: center; z-index: 50; font-weight: 600; color: var(--navy); }
+  .carregando.on { display: grid; }
+
+  .modal { position: fixed; inset: 0; background: rgba(20,12,50,.55); display: none; z-index: 40; padding: 16px; }
+  .modal.on { display: flex; align-items: center; justify-content: center; }
+  .modal .caixa { background: #fff; border-radius: 12px; width: min(900px, 100%); height: min(92vh, 1100px); display: flex; flex-direction: column; overflow: hidden; }
+  .modal .barra-topo { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--linha); }
+  .modal .barra-topo b { margin-right: auto; color: var(--navy); }
+  .modal iframe { flex: 1; border: 0; width: 100%; background: #f3f0ea; }
+
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--navy); color: #fff; padding: 10px 16px; border-radius: 8px; display: none; z-index: 60; max-width: 90vw; }
+  .toast.on { display: block; }
+  .oculto { display: none !important; }
+  .linha-acoes { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <div class="wrap">
+    <div>
+      <h1>Auditoria de Atendimento</h1>
+      <small id="subtitulo">&nbsp;</small>
+    </div>
+    <div class="origens" id="origens"></div>
+    <div class="direita">
+      <span id="atualizado"></span>
+      <button class="btn claro mini" onclick="carregar()">Atualizar</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="aviso-demo oculto" id="avisoDemo">
+    Modo demonstração: dados fictícios. Publicado no Apps Script, o painel lê a planilha do Forms e o botão PDF baixa o arquivo direto.
+  </div>
+
+  <section class="filtros" id="filtros">
+    <div><label for="f-regional" data-rotulo="regional">Regional</label><select id="f-regional"></select></div>
+    <div><label for="f-filial" data-rotulo="filial">Filial</label><select id="f-filial"></select></div>
+    <div><label for="f-ar" data-rotulo="ar">AR</label><select id="f-ar"></select></div>
+    <div><label for="f-auditor" data-rotulo="auditor">Auditor</label><select id="f-auditor"></select></div>
+    <div><label for="f-mes">Mês</label><select id="f-mes"></select></div>
+    <div><label for="f-de">Data de</label><input type="date" id="f-de"></div>
+    <div><label for="f-ate">Data até</label><input type="date" id="f-ate"></div>
+    <div><button class="btn claro" style="width:100%" onclick="limparFiltros()">Limpar filtros</button></div>
+  </section>
+
+  <section class="kpis">
+    <div class="kpi"><b id="k-media">–</b><span>Nota média</span></div>
+    <div class="kpi"><b id="k-total">–</b><span>Total de auditorias</span></div>
+    <div class="kpi"><b id="k-menor">–</b><span>Menor nota</span></div>
+    <div class="kpi"><b id="k-meta">–</b><span id="k-meta-rot">Na meta</span></div>
+  </section>
+
+  <nav class="abas" id="abas">
+    <button data-aba="auditorias" class="ativo">Auditorias (baixar PDF)</button>
+    <button data-aba="ars">Por AR</button>
+    <button data-aba="visao">Perguntas</button>
+    <button data-aba="grupos" data-rotulo-aba="filial">Evolução por Filial</button>
+  </nav>
+
+  <section data-painel="auditorias">
+    <div class="card">
+      <h2>
+        <span>Auditorias <small id="qtdAud"></small></span>
+        <span class="linha-acoes">
+          <input id="busca" placeholder="Buscar AR, auditor, filial…" style="padding:6px 8px;border:1px solid var(--linha);border-radius:6px;min-width:200px">
+          <button class="btn pdf" id="btnPdfFiltradas" onclick="baixarFiltradas()">Baixar PDF das filtradas</button>
+        </span>
+      </h2>
+      <div class="rolagem"><table class="t" id="tAuditorias"></table></div>
+    </div>
+  </section>
+
+  <section data-painel="ars" class="oculto">
+    <div class="card">
+      <h2><span>Resultado por AR</span><small>Clique em “Ver auditorias” para listar ou em “PDF” para baixar todas as auditorias do AR em um arquivo</small></h2>
+      <div class="rolagem"><table class="t" id="tArs"></table></div>
+    </div>
+  </section>
+
+  <section data-painel="visao" class="oculto">
+    <div class="grade">
+      <div class="card">
+        <h2><span>Perguntas</span><small>ordenadas do menor para o maior aproveitamento</small></h2>
+        <div class="rolagem"><table class="t" id="tPerguntas"></table></div>
+      </div>
+      <div class="card">
+        <h2><span>Média da nota por mês</span><small id="legMeta"></small></h2>
+        <div id="graficoMes"></div>
+      </div>
+    </div>
+  </section>
+
+  <section data-painel="grupos" class="oculto">
+    <div class="grade">
+      <div class="card">
+        <h2><span id="tituloMapa">Nota por Filial e mês</span></h2>
+        <div class="rolagem"><table class="t mapa" id="tMapa"></table></div>
+      </div>
+      <div class="card">
+        <h2><span id="tituloRanking">Nota média por Filial</span><small id="legMeta2"></small></h2>
+        <div class="ranking" id="ranking"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" onclick="if(event.target===this)fecharModal()">
+  <div class="caixa">
+    <div class="barra-topo">
+      <b id="modalTitulo">Relatório</b>
+      <button class="btn pdf" id="modalPdf">Baixar PDF</button>
+      <button class="btn claro" onclick="fecharModal()">Fechar</button>
+    </div>
+    <iframe id="modalFrame" title="Pré-visualização do relatório"></iframe>
+  </div>
+</div>
+<div class="carregando" id="carregando">Carregando…</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================== estado =============================== */
+const ORIGEM_URL = '<?= origemInicial ?>';
+const MODO_DEMO = !(window.google && google.script && google.script.run);
+const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const LIMITE_PDF = 60;
+
+const st = { origens: [], origem: null, dados: null, aba: 'auditorias' };
+const $ = id => document.getElementById(id);
+const FILTROS = ['regional', 'filial', 'ar', 'auditor', 'mes'];
+
+/* ========================= chamadas ao servidor ====================== */
+function chamar(fn, ...args) {
+  if (MODO_DEMO) return Promise.resolve(DEMO[fn](...args));
+  return new Promise((ok, erro) =>
+    google.script.run.withSuccessHandler(ok).withFailureHandler(erro)[fn](...args));
+}
+
+async function iniciar() {
+  if (MODO_DEMO) $('avisoDemo').classList.remove('oculto');
+  document.querySelectorAll('#abas button').forEach(b => b.onclick = () => trocarAba(b.dataset.aba));
+  FILTROS.forEach(f => $('f-' + f).onchange = render);
+  ['f-de', 'f-ate'].forEach(id => $(id).onchange = render);
+  $('busca').oninput = renderAuditorias;
+
+  st.origens = await chamar('listarOrigens');
+  const ids = st.origens.map(o => o.id);
+  st.origem = ids.includes(ORIGEM_URL) ? ORIGEM_URL : ids[0];
+  $('origens').innerHTML = st.origens.map(o =>
+    `<button data-id="${esc(o.id)}">${esc(o.titulo)}</button>`).join('');
+  $('origens').querySelectorAll('button').forEach(b => b.onclick = () => { st.origem = b.dataset.id; limparFiltros(true); carregar(); });
+  carregar();
+}
+
+async function carregar() {
+  $('origens').querySelectorAll('button').forEach(b => b.classList.toggle('ativo', b.dataset.id === st.origem));
+  $('carregando').classList.add('on');
+  try {
+    st.dados = await chamar('getDados', st.origem);
+    aplicarRotulos();
+    render();
+  } catch (e) {
+    toast('Erro ao carregar: ' + (e && e.message || e), 6000);
+  } finally {
+    $('carregando').classList.remove('on');
+  }
+}
+
+function aplicarRotulos() {
+  const r = st.dados.rotulos;
+  document.querySelectorAll('[data-rotulo]').forEach(el => el.textContent = r[el.dataset.rotulo]);
+  document.querySelector('[data-rotulo-aba]').textContent = 'Evolução por ' + r.filial;
+  $('tituloMapa').textContent = `Nota por ${r.filial} e mês`;
+  $('tituloRanking').textContent = `Nota média por ${r.filial}`;
+  const ini = st.dados.dataInicio ? 'A partir de ' + dataBR(st.dados.dataInicio) + ' · ' : '';
+  $('subtitulo').textContent = ini + st.dados.titulo;
+  $('atualizado').textContent = 'Atualizado ' + st.dados.atualizadoEm;
+  $('k-meta-rot').textContent = `Na meta (≥ ${st.dados.meta})`;
+  $('legMeta').textContent = $('legMeta2').textContent = `– – meta ${st.dados.meta}`;
+  // Esconde filtros de campos que a planilha não tem
+  ['regional', 'filial', 'auditor'].forEach(c => {
+    const tem = st.dados.auditorias.some(a => a[c]);
+    $('f-' + c).parentElement.classList.toggle('oculto', !tem);
+  });
+  const temGrupo = st.dados.auditorias.some(a => a.filial);
+  document.querySelector('[data-aba="grupos"]').classList.toggle('oculto', !temGrupo);
+  if (!temGrupo && st.aba === 'grupos') trocarAba('auditorias');
+}
+
+/* ============================== filtros ============================== */
+const mesDe = a => (a.data || '').slice(0, 7);
+
+function valorFiltro(f) { return $('f-' + f).value; }
+
+function passa(a, ignorar) {
+  for (const f of FILTROS) {
+    if (f === ignorar) continue;
+    const v = valorFiltro(f);
+    if (v && (f === 'mes' ? mesDe(a) : a[f]) !== v) return false;
+  }
+  const de = $('f-de').value, ate = $('f-ate').value;
+  if (de && a.data < de) return false;
+  if (ate && a.data > ate) return false;
+  return true;
+}
+
+function filtradas() { return st.dados.auditorias.filter(a => passa(a)); }
+
+function montarOpcoes() {
+  // Cada lista só mostra o que existe dentro dos outros filtros escolhidos
+  FILTROS.forEach(f => {
+    const sel = $('f-' + f), atual = sel.value;
+    const vals = [...new Set(st.dados.auditorias.filter(a => passa(a, f))
+      .map(a => f === 'mes' ? mesDe(a) : a[f]).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'pt-BR'));
+    if (atual && !vals.includes(atual)) vals.unshift(atual);
+    sel.innerHTML = '<option value="">Todos</option>' + vals.map(v =>
+      `<option value="${esc(v)}"${v === atual ? ' selected' : ''}>${esc(f === 'mes' ? nomeMes(v) : v)}</option>`).join('');
+  });
+}
+
+function limparFiltros(semRender) {
+  FILTROS.forEach(f => $('f-' + f).value = '');
+  $('f-de').value = $('f-ate').value = $('busca').value = '';
+  if (!semRender && st.dados) render();
+}
+
+function trocarAba(aba) {
+  st.aba = aba;
+  document.querySelectorAll('#abas button').forEach(b => b.classList.toggle('ativo', b.dataset.aba === aba));
+  document.querySelectorAll('[data-painel]').forEach(p => p.classList.toggle('oculto', p.dataset.painel !== aba));
+}
+
+/* =============================== render ============================== */
+function render() {
+  montarOpcoes();
+  const lista = filtradas();
+  const notas = lista.map(a => a.nota).filter(n => n !== null);
+  const meta = st.dados.meta;
+  $('k-media').textContent = notas.length ? fmt(media(notas)) : '–';
+  $('k-total').textContent = lista.length;
+  $('k-menor').textContent = notas.length ? fmt(Math.min(...notas)) : '–';
+  $('k-meta').textContent = notas.length ? Math.round(notas.filter(n => n >= meta).length / notas.length * 100) + '%' : '–';
+
+  renderAuditorias();
+  renderArs(lista);
+  renderPerguntas(lista);
+  renderGraficoMes(lista);
+  renderGrupos(lista);
+}
+
+function renderAuditorias() {
+  const r = st.dados.rotulos;
+  const termo = norm($('busca').value);
+  const lista = filtradas()
+    .filter(a => !termo || norm([a.ar, a.auditor, a.filial, a.regional].join(' ')).includes(termo))
+    .sort((x, y) => (y.data || '').localeCompare(x.data || '') || x.ar.localeCompare(y.ar));
+  st.listaVisivel = lista;
+  $('qtdAud').textContent = `· ${lista.length} encontrada(s)`;
+  $('btnPdfFiltradas').disabled = !lista.length;
+  if (!lista.length) { $('tAuditorias').innerHTML = '<tr><td class="vazio">Nenhuma auditoria com esses filtros.</td></tr>'; return; }
+  const temFilial = lista.some(a => a.filial);
+  $('tAuditorias').innerHTML = `
+    <thead><tr><th>Data</th><th>${esc(r.ar)}</th>${temFilial ? `<th>${esc(r.filial)}</th>` : ''}<th>${esc(r.auditor)}</th><th class="num">Nota</th><th></th></tr></thead>
+    <tbody>${lista.map(a => `
+      <tr>
+        <td class="num">${dataBR(a.data)}</td>
+        <td><b>${esc(a.ar || '—')}</b></td>
+        ${temFilial ? `<td>${esc(a.filial)}</td>` : ''}
+        <td>${esc(a.auditor)}</td>
+        <td class="num">${seloNota(a.nota)}</td>
+        <td class="acoes">
+          <button class="btn claro mini" onclick="verAuditoria(${a.id})">Ver</button>
+          <button class="btn pdf mini" onclick="baixarAuditoria(${a.id})">PDF</button>
+        </td>
+      </tr>`).join('')}</tbody>`;
+}
+
+function renderArs(lista) {
+  const r = st.dados.rotulos;
+  const grupos = agrupar(lista, a => a.ar || '(sem nome)');
+  const linhas = Object.entries(grupos).map(([ar, auds]) => {
+    const ns = auds.map(a => a.nota).filter(n => n !== null);
+    return { ar, auds, filial: maisFrequente(auds.map(a => a.filial)), media: ns.length ? media(ns) : null,
+             menor: ns.length ? Math.min(...ns) : null, ultima: auds.map(a => a.data).sort().pop() };
+  }).sort((x, y) => (x.media ?? 999) - (y.media ?? 999));
+  st.linhasAr = linhas;
+  if (!linhas.length) { $('tArs').innerHTML = '<tr><td class="vazio">Sem dados.</td></tr>'; return; }
+  const temFilial = linhas.some(l => l.filial);
+  $('tArs').innerHTML = `
+    <thead><tr><th>${esc(r.ar)}</th>${temFilial ? `<th>${esc(r.filial)}</th>` : ''}<th class="num">Auditorias</th><th class="num">Média</th><th class="num">Menor</th><th class="num">Última</th><th></th></tr></thead>
+    <tbody>${linhas.map((l, i) => `
+      <tr>
+        <td><b>${esc(l.ar)}</b></td>
+        ${temFilial ? `<td>${esc(l.filial)}</td>` : ''}
+        <td class="num">${l.auds.length}</td>
+        <td class="num">${seloNota(l.media)}</td>
+        <td class="num">${l.menor === null ? '–' : fmt(l.menor)}</td>
+        <td class="num">${dataBR(l.ultima)}</td>
+        <td class="acoes">
+          <button class="btn claro mini" onclick="filtrarAr(${i})">Ver auditorias</button>
+          <button class="btn pdf mini" onclick="baixarAr(${i})">PDF</button>
+        </td>
+      </tr>`).join('')}</tbody>`;
+}
+
+function estatPergunta(lista, i, vale) {
+  const resps = lista.map(a => a.respostas[i]).filter(Boolean);
+  const pts = resps.map(r => r.p).filter(p => p !== null);
+  return {
+    freq: maisFrequente(resps.map(r => r.r).filter(Boolean)),
+    media: pts.length ? media(pts) : null,
+    aprov: pts.length ? media(pts) / vale * 100 : null
+  };
+}
+
+function renderPerguntas(lista) {
+  const ps = st.dados.perguntas.map((p, i) => Object.assign({ titulo: p.titulo, vale: p.vale }, estatPergunta(lista, i, p.vale)))
+    .sort((x, y) => (x.aprov ?? 999) - (y.aprov ?? 999));
+  if (!ps.length) { $('tPerguntas').innerHTML = '<tr><td class="vazio">Nenhuma coluna “(Vale X)” encontrada na planilha.</td></tr>'; return; }
+  $('tPerguntas').innerHTML = `
+    <thead><tr><th>Pergunta</th><th>Resposta frequente</th><th class="num">Nota média</th><th>Aproveitamento</th></tr></thead>
+    <tbody>${ps.map(p => `
+      <tr>
+        <td>${esc(p.titulo)}</td>
+        <td>${tagResposta(p.freq)}</td>
+        <td class="num">${p.media === null ? '–' : fmt(p.media, 2)} / ${fmt(p.vale, 0)}</td>
+        <td><div style="display:flex;gap:6px;align-items:center"><div class="barra" style="flex:1"><i style="width:${p.aprov ?? 0}%;background:${corNota(p.aprov)}"></i></div><span class="num" style="width:36px">${p.aprov === null ? '–' : Math.round(p.aprov) + '%'}</span></div></td>
+      </tr>`).join('')}</tbody>`;
+}
+
+function renderGraficoMes(lista) {
+  const porMes = Object.entries(agrupar(lista.filter(a => a.nota !== null && a.data), mesDe))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([m, auds]) => ({ m, v: media(auds.map(a => a.nota)), n: auds.length }));
+  if (!porMes.length) { $('graficoMes').innerHTML = '<div class="vazio">Sem dados.</div>'; return; }
+  const W = 520, H = 260, pl = 34, pr = 26, pt = 22, pb = 30, meta = st.dados.meta;
+  const vals = porMes.map(p => p.v).concat(meta);
+  let lo = Math.max(0, Math.floor((Math.min(...vals) - 5) / 10) * 10), hi = Math.min(100, Math.ceil((Math.max(...vals) + 5) / 10) * 10);
+  if (hi - lo < 20) lo = Math.max(0, hi - 20);
+  const x = i => porMes.length === 1 ? (pl + W - pr) / 2 : pl + i * (W - pl - pr) / (porMes.length - 1);
+  const y = v => pt + (hi - v) / (hi - lo) * (H - pt - pb);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Média da nota por mês" style="font-size:11px">`;
+  for (let g = lo; g <= hi; g += 10)
+    svg += `<line x1="${pl}" x2="${W - pr}" y1="${y(g)}" y2="${y(g)}" stroke="#eee4d3"/><text x="${pl - 6}" y="${y(g) + 4}" text-anchor="end" fill="#6b6480">${g}</text>`;
+  svg += `<line x1="${pl}" x2="${W - pr}" y1="${y(meta)}" y2="${y(meta)}" stroke="#c8102e" stroke-dasharray="5 4" stroke-width="1.5"/>`;
+  const pts = porMes.map((p, i) => `${x(i)},${y(p.v)}`).join(' ');
+  svg += `<polygon points="${x(0)},${y(lo)} ${pts} ${x(porMes.length - 1)},${y(lo)}" fill="#1b0f4d" opacity=".08"/>`;
+  svg += `<polyline points="${pts}" fill="none" stroke="#1b0f4d" stroke-width="2.5"/>`;
+  porMes.forEach((p, i) => {
+    svg += `<circle cx="${x(i)}" cy="${y(p.v)}" r="4.5" fill="#1b0f4d" stroke="#fff" stroke-width="2"><title>${nomeMes(p.m)}: ${fmt(p.v)} (${p.n} auditorias)</title></circle>`;
+    svg += `<text x="${x(i)}" y="${y(p.v) - 10}" text-anchor="middle" font-weight="700" fill="#1b0f4d">${fmt(p.v)}</text>`;
+    svg += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle" fill="#6b6480">${nomeMes(p.m)}</text>`;
+  });
+  $('graficoMes').innerHTML = svg + '</svg>';
+}
+
+function renderGrupos(lista) {
+  const r = st.dados.rotulos, meta = st.dados.meta;
+  const comNota = lista.filter(a => a.nota !== null && a.filial);
+  const meses = [...new Set(comNota.map(mesDe))].sort();
+  const grupos = agrupar(comNota, a => a.filial);
+  const nomes = Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  if (!nomes.length) { $('tMapa').innerHTML = '<tr><td class="vazio">Sem dados.</td></tr>'; $('ranking').innerHTML = ''; return; }
+  const cel = auds => auds && auds.length ? `<span style="color:${corNota(media(auds.map(a => a.nota)))}">${fmt(media(auds.map(a => a.nota)), 0)}</span>` : '';
+  $('tMapa').innerHTML = `
+    <thead><tr><th>${esc(r.filial)}</th>${meses.map(m => `<th class="num">${nomeMes(m)}</th>`).join('')}<th class="num">Total</th></tr></thead>
+    <tbody>${nomes.map(n => {
+      const pm = agrupar(grupos[n], mesDe);
+      return `<tr><td><b>${esc(n)}</b></td>${meses.map(m => `<td class="cel">${cel(pm[m])}</td>`).join('')}<td class="cel">${cel(grupos[n])}</td></tr>`;
+    }).join('')}</tbody>
+    <tfoot><tr><td>Total</td>${meses.map(m => `<td class="cel">${cel(comNota.filter(a => mesDe(a) === m))}</td>`).join('')}<td class="cel">${cel(comNota)}</td></tr></tfoot>`;
+
+  const rank = nomes.map(n => ({ n, v: media(grupos[n].map(a => a.nota)) })).sort((a, b) => b.v - a.v);
+  $('ranking').innerHTML = rank.map(g => `
+    <div class="linha"><span title="${esc(g.n)}">${esc(g.n)}</span>
+      <div class="trilho"><i style="width:${g.v}%;background:${g.v >= meta ? '#1b0f4d' : '#c8102e'}"></i><span class="meta" style="left:${meta}%"></span></div>
+      <span class="num"><b>${fmt(g.v)}</b></span></div>`).join('');
+}
+
+/* ======================= ações (ver / filtrar / PDF) ================= */
+const porId = id => st.dados.auditorias.find(a => a.id === id);
+
+function verAuditoria(id) {
+  const a = porId(id);
+  abrirModal(`${a.ar} · ${dataBR(a.data)}`, [a], nomeArquivo([a]));
+}
+
+function filtrarAr(i) {
+  const l = st.linhasAr[i];
+  $('f-ar').value = l.ar;
+  render();
+  trocarAba('auditorias');
+}
+
+function baixarAuditoria(id) { baixarPdf([porId(id)]); }
+function baixarAr(i) { baixarPdf(ordenarParaPdf(st.linhasAr[i].auds)); }
+function baixarFiltradas() { baixarPdf(ordenarParaPdf(st.listaVisivel || [])); }
+const ordenarParaPdf = l => l.slice().sort((x, y) => x.ar.localeCompare(y.ar) || (x.data || '').localeCompare(y.data || ''));
+
+function abrirModal(titulo, lista, nome) {
+  $('modalTitulo').textContent = titulo;
+  $('modalFrame').srcdoc = montarRelatorio(lista, true);
+  $('modalPdf').onclick = () => baixarPdf(lista);
+  $('modal').classList.add('on');
+}
+function fecharModal() { $('modal').classList.remove('on'); $('modalFrame').srcdoc = ''; }
+
+function nomeArquivo(lista) {
+  const ars = [...new Set(lista.map(a => a.ar))];
+  if (lista.length === 1) return `Auditoria ${st.dados.titulo} - ${lista[0].ar} - ${dataBR(lista[0].data).replace(/\//g, '-')}`;
+  if (ars.length === 1) return `Auditorias ${st.dados.titulo} - ${ars[0]} (${lista.length})`;
+  return `Auditorias ${st.dados.titulo} - ${lista.length} registros`;
+}
+
+async function baixarPdf(lista) {
+  if (!lista.length) return;
+  if (lista.length > LIMITE_PDF) {
+    toast(`São ${lista.length} auditorias. Filtre para no máximo ${LIMITE_PDF} por arquivo.`, 5000); return;
+  }
+  const nome = nomeArquivo(lista);
+  const html = montarRelatorio(lista, false);
+  if (MODO_DEMO) { imprimir(html); return; }
+  toast(lista.length > 1 ? `Gerando PDF com ${lista.length} auditorias…` : 'Gerando PDF…', 60000);
+  try {
+    const r = await chamar('gerarPdf', html, nome);
+    const bytes = Uint8Array.from(atob(r.base64), c => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = r.nome; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast('PDF baixado: ' + r.nome, 3500);
+  } catch (e) {
+    toast('Não foi possível gerar o PDF: ' + (e && e.message || e), 6000);
+  }
+}
+
+// Modo demo: abre o diálogo de impressão do navegador ("Salvar como PDF")
+function imprimir(html) {
+  const f = document.createElement('iframe');
+  f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
+  document.body.appendChild(f);
+  f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Use a pré-visualização (Ver) e imprima com Ctrl+P.', 5000); } setTimeout(() => f.remove(), 2000); };
+  f.srcdoc = html;
+}
+
+/* ===================== relatório (HTML → PDF) ======================== */
+// Layout só com tabelas e estilos inline: é o que o conversor de PDF do Google respeita melhor.
+function montarRelatorio(lista, tela) {
+  const d = st.dados, r = d.rotulos;
+  const NAVY = '#1b0f4d', BEGE = '#f5e8d2', LINHA = '#e0d5c2';
+  const td = 'padding:5px 7px;border-bottom:1px solid ' + LINHA + ';font-size:10.5pt;vertical-align:top;';
+  const th = 'padding:6px 7px;background:' + NAVY + ';color:#ffffff;font-size:10pt;text-align:left;';
+  const corResp = s => ({ sim: '#1e7b4f', nao: '#c8102e', parcialmente: '#b7791f' })[norm(s)] || '#555555';
+
+  const uma = (a, i) => {
+    const info = [[r.ar, a.ar], [r.filial, a.filial], [r.regional, a.regional], [r.auditor, a.auditor], ['Data da auditoria', dataBR(a.data)]]
+      .filter(([, v]) => v);
+    const corN = corNota(a.nota);
+    const perguntas = d.perguntas.map((p, k) => {
+      const resp = a.respostas[k] || { r: '', p: null };
+      return `<tr>
+        <td style="${td}">${esc(p.titulo)}</td>
+        <td style="${td}color:${corResp(resp.r)};font-weight:bold;white-space:nowrap">${esc(resp.r || '—')}</td>
+        <td style="${td}text-align:right;white-space:nowrap">${resp.p === null ? '–' : fmt(resp.p, 1)} / ${fmt(p.vale, 0)}</td>
+      </tr>`;
+    }).join('');
+    return `
+    <div style="${i > 0 ? 'page-break-before:always;' : ''}">
+      <table style="width:100%;border-collapse:collapse;background:${BEGE};margin-bottom:12px">
+        <tr>
+          <td style="padding:10px 12px">
+            <div style="font-size:15pt;font-weight:bold;color:${NAVY}">Relatório de Feedback</div>
+            <div style="font-size:10pt;color:#5a5470">Auditoria de Atendimento · ${esc(d.titulo)}</div>
+          </td>
+          <td style="padding:10px 12px;text-align:right;width:140px">
+            <div style="font-size:9pt;color:#5a5470">Nota do atendimento</div>
+            <div style="font-size:26pt;font-weight:bold;color:${corN}">${a.nota === null ? '–' : fmt(a.nota)}</div>
+          </td>
+        </tr>
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:14px">
+        ${info.map(([k, v]) => `<tr><td style="${td}width:150px;color:#5a5470">${esc(k)}</td><td style="${td}font-weight:bold">${esc(v)}</td></tr>`).join('')}
+      </table>
+
+      <table style="width:100%;border-collapse:collapse;margin-bottom:16px">
+        <tr><th style="${th}">Pergunta</th><th style="${th}width:95px">Resposta</th><th style="${th}width:70px;text-align:right">Pontos</th></tr>
+        ${perguntas}
+      </table>
+
+      ${a.pontos ? `
+      <table style="width:100%;border-collapse:collapse">
+        <tr><th style="${th}">Pontos de Auditoria</th></tr>
+        <tr><td style="padding:10px 12px;font-size:10.5pt;line-height:1.5;background:#fdfaf3;border:1px solid ${LINHA}">${formatarPontos(a.pontos)}</td></tr>
+      </table>` : ''}
+    </div>`;
+  };
+
+  const fundoTela = tela ? 'background:#f3f0ea;padding:16px;' : '';
+  const folha = tela ? 'background:#ffffff;max-width:760px;margin:0 auto;padding:28px;box-shadow:0 2px 10px rgba(0,0,0,.12);' : '';
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Relatório de Feedback</title>
+    <style>@page { size: A4; margin: 14mm; } body { margin:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }</style></head>
+    <body style="font-family:Arial,Helvetica,sans-serif;color:#1f1a2e;${fundoTela}">
+      <div style="${folha}">${lista.map(uma).join('')}</div>
+    </body></html>`;
+}
+
+// Quebra de linha preservada e títulos ("Pontos fortes:", "1. Diagnóstico…") em negrito
+function formatarPontos(txt) {
+  return String(txt).split(/\r?\n/).map(l => {
+    const s = l.trim();
+    if (!s) return '<div style="height:8px"></div>';
+    const titulo = s.length <= 90 && (/:$/.test(s) || /^\d+[.)]\s+\S/.test(s) || /^(pontos fortes|oportunidades|plano de|pontos de melhoria)/i.test(s));
+    if (/^[-•*]\s+/.test(s)) return `<div style="padding-left:14px">• ${esc(s.replace(/^[-•*]\s+/, ''))}</div>`;
+    return titulo ? `<div style="font-weight:bold;color:#1b0f4d;margin-top:6px">${esc(s)}</div>` : `<div>${esc(s)}</div>`;
+  }).join('');
+}
+
+/* ============================== utilidades =========================== */
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+function norm(s) { return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
+function media(a) { return a.reduce((s, v) => s + v, 0) / a.length; }
+function fmt(v, casas = 1) { return v === null || v === undefined ? '–' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas }); }
+function dataBR(iso) { if (!iso) return '–'; const [y, m, d] = iso.split('-'); return `${d}/${m}/${y}`; }
+function nomeMes(ym) { if (!ym) return ''; const [y, m] = ym.split('-'); return `${MESES[+m - 1]}/${y.slice(2)}`; }
+function agrupar(lista, chave) { return lista.reduce((g, a) => ((g[chave(a)] ||= []).push(a), g), {}); }
+function maisFrequente(l) { const c = {}; let best = '', n = 0; l.filter(Boolean).forEach(v => { c[v] = (c[v] || 0) + 1; if (c[v] > n) { n = c[v]; best = v; } }); return best; }
+function corNota(v) { if (v === null || v === undefined) return '#6b6480'; const m = st.dados.meta; return v >= m ? '#1e7b4f' : v >= m - 15 ? '#b7791f' : '#c8102e'; }
+function seloNota(v) {
+  if (v === null || v === undefined) return '–';
+  const m = st.dados.meta, c = v >= m ? 'n-bom' : v >= m - 15 ? 'n-medio' : 'n-ruim';
+  return `<span class="nota ${c}">${fmt(v)}</span>`;
+}
+function tagResposta(s) {
+  if (!s) return '–';
+  const c = { sim: 't-sim', nao: 't-nao', parcialmente: 't-parc' }[norm(s)] || 't-nc';
+  return `<span class="tag ${c}">${esc(s)}</span>`;
+}
+let toastT;
+function toast(msg, ms = 3000) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharModal(); });
+
+/* ===================== dados de demonstração ========================= */
+// Usados só quando a página é aberta fora do Apps Script (pré-visualização).
+const DEMO = (() => {
+  let semente = 7;
+  const rnd = () => (semente = (semente * 16807) % 2147483647) / 2147483647;
+  const pick = l => l[Math.floor(rnd() * l.length)];
+  const PERGUNTAS = [
+    ['Saudar o Lead (Vale 5)', .9], ['Perguntar o nome do Lead (Vale 5)', .85], ['Sondar a experiência / nível (Vale 5)', .9],
+    ['Identificar a dor ou desejo do lead (Vale 10)', .35], ['Confirmar quem será o decisor final (Vale 5)', .2],
+    ['Explicar o que é e como funciona o nivelamento (Vale 5)', .75], ['Fazer a apresentação da solução ideal (Vale 10)', .55],
+    ['Perguntar se a solução apresentada atende ao lead (Vale 5)', .15], ['Informar o curso ideal, dias e horários (Vale 5)', .9],
+    ['Informar o valor de investimento e cascateamento (Vale 5)', .65], ['Contornar objeções (Vale 5)', .8],
+    ['Verificar a disponibilidade para estudar (Vale 5)', .35], ['Fazer o direcionamento ao fechamento com técnica (Vale 5)', .85],
+    ['Agendar ou convidar para realizar a CN na hora (Vale 5)', .85], ['Solicitar dados para o cadastro (Vale 10)', .85],
+    ['Registrar o lead no RD CRM (Vale 5)', .6]
+  ];
+  const REG = { 'Zona Sul': ['Botafogo', 'Copacabana', 'Ipanema', 'Leblon', 'Novo Leblon'], 'Zona Norte': ['Méier', 'Tijuca 1', 'Tijuca 2', 'Ilha do Governador', 'Vila Militar'],
+                'Zona Oeste': ['Campo Grande', 'Freguesia', 'Recreio', 'Parque Olímpico', 'Jardim Botânico'], 'Niterói/Serra': ['Icaraí', 'Nova América', 'Teresópolis'] };
+  const NOMES = ['Ana Paula', 'Bruno Costa', 'Carla Mendes', 'Diego Rocha', 'Elisa Prado', 'Fábio Lima', 'Gabriela Reis', 'Henrique Alves', 'Isabela Nunes', 'João Pedro', 'Larissa Gomes', 'Marcos Vinícius', 'Natália Souza', 'Otávio Melo', 'Paula Freitas', 'Rafael Dias', 'Sabrina Torres', 'Thiago Martins', 'Vanessa Cruz', 'Wesley Pinto'];
+  const PONTOS = `Pontos fortes:
+O atendimento foi conduzido de forma cordial, acolhedora e com boa postura ao longo de toda a conversa. A comunicação foi clara e transmitiu segurança sobre os produtos. Também realizou a apresentação das soluções para os dois perfis apresentados, explicando características, diferenciais, valores e condições comerciais.
+
+Oportunidades de desenvolvimento:
+1. Diagnóstico mais consultivo
+Embora tenha confirmado algumas informações iniciais (perfil do aluno e origem do lead), o atendimento evoluiu rapidamente para a apresentação dos cursos. Havia oportunidade para aprofundar o diagnóstico com perguntas sobre objetivo, motivação, disponibilidade de horários e expectativas.
+2. Personalização da proposta de valor
+Grande parte da apresentação foi composta por textos padronizados. Conectar os benefícios às necessidades demonstradas pelo cliente torna a proposta mais consultiva e persuasiva.
+3. Exploração das objeções
+O cliente demonstrou preocupação com investimento e duração do curso. Perguntas como "O que costuma funcionar melhor para você?" ajudariam a compreender melhor a necessidade antes de responder objetivamente.
+4. Fechamento mais consultivo
+Ao final, o cliente informou que ainda estava pesquisando valores. Havia oportunidade para um fechamento mais consultivo, investigando o que ainda faltava para a decisão ou buscando um compromisso com a próxima etapa.
+
+Plano de desenvolvimento sugerido:
+- Desenvolver técnicas de diagnóstico consultivo, utilizando mais perguntas abertas antes de apresentar a solução.
+- Personalizar a proposta de valor conectando os benefícios às necessidades identificadas.
+- Explorar as objeções antes de responder, buscando compreender o contexto completo.
+- Fortalecer o fechamento, conduzindo o lead para uma próxima ação concreta.
+
+Esse atendimento demonstra uma boa base técnica, excelente postura e conhecimento dos produtos. O principal potencial de evolução está em tornar a conversa menos expositiva e mais consultiva.`;
+  const pesos = { sim: 1, parcialmente: .5, nao: 0, 'n/c': 1 };
+
+  function gerar(central) {
+    const auds = [];
+    const equipes = { 'Coordenação A': ['Equipe Leads Web', 'Equipe WhatsApp'], 'Coordenação B': ['Equipe Retenção', 'Equipe Rematrícula'] };
+    const reg = central ? equipes : REG;
+    const pessoas = {};
+    Object.values(reg).flat().forEach(g => pessoas[g] = [pick(NOMES), pick(NOMES)].filter((v, i, l) => l.indexOf(v) === i));
+    for (let k = 0; k < (central ? 40 : 70); k++) {
+      const regional = pick(Object.keys(reg)), filial = pick(reg[regional]), ar = pick(pessoas[filial]);
+      const mes = 5 + Math.floor(rnd() * 5), dia = 1 + Math.floor(rnd() * 27);
+      const vies = (norm(filial).length % 5 - 2) * .05;
+      let ob = 0, pos = 0;
+      const respostas = PERGUNTAS.map(([t, p]) => {
+        const vale = +t.match(/Vale (\d+)/)[1], x = rnd();
+        const r = rnd() < .25 ? 'N/C' : x < p + vies ? 'Sim' : x < p + vies + .12 ? 'Parcialmente' : 'Não';
+        const pts = pesos[norm(r)] * vale; ob += pts; pos += vale;
+        return { r, p: pts };
+      });
+      auds.push({ id: k + 2, data: `2026-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`, ar, auditor: pick(['Mariana Lopes', 'Ricardo Faria', 'Juliana Brito']),
+                  filial, regional, nota: Math.round(ob / pos * 1000) / 10, respostas, pontos: PONTOS });
+    }
+    return auds;
+  }
+  const cache = {};
+  return {
+    listarOrigens: () => [{ id: 'filiais', titulo: 'Filiais' }, { id: 'central', titulo: 'Central de Relacionamento' }],
+    getDados: origem => ({
+      origem, titulo: origem === 'central' ? 'Central de Relacionamento' : 'Filiais', meta: 70, dataInicio: '2026-05-05',
+      rotulos: origem === 'central' ? { ar: 'AR', filial: 'Equipe', regional: 'Coordenação', auditor: 'Auditor' } : { ar: 'AR', filial: 'Filial', regional: 'Regional', auditor: 'Auditor' },
+      atualizadoEm: new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+      perguntas: PERGUNTAS.map(([t]) => ({ titulo: t, vale: +t.match(/Vale (\d+)/)[1] })),
+      auditorias: cache[origem] ||= gerar(origem === 'central')
+    })
+  };
+})();
+
+iniciar();
+</script>
+</body>
+</html>
