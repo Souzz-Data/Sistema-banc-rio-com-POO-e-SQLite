@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<title>Acesso não autorizado</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f7fa; color: #1c2733;
+         font: 15px/1.5 "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 16px; box-sizing: border-box; }
+  .caixa { background: #fff; border-top: 5px solid #F04131; border-radius: 10px; padding: 28px 32px; max-width: 440px; text-align: center;
+           box-shadow: 0 2px 12px rgba(2, 91, 148, .12); }
+  h1 { font-size: 19px; color: #025B94; margin: 12px 0 8px; }
+  p { margin: 6px 0; color: #5b6b7b; }
+  code { background: #eef4f9; padding: 1px 6px; border-radius: 4px; color: #1c2733; }
+</style>
+</head>
+<body>
+  <div class="caixa">
+    <img src="<?= logo ?>" width="72" height="72" alt="IBEU">
+    <h1>Você não tem acesso a este painel</h1>
+    <? if (email) { ?>
+      <p>Você entrou como <code><?= email ?></code>.</p>
+    <? } ?>
+    <p>Para pedir acesso, fale com <?= contato ?>.</p>
+  </div>
+</body>
+</html>

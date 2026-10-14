@@ -1,52 +1,78 @@
-# Dashboard de Auditoria de Atendimento
+# Dashboard de Auditoria de Atendimento · IBEU
 
-Painel web, em Google Apps Script, que lê direto as planilhas de respostas do Google Forms (Filiais e Central de Relacionamento). Com ele o gestor **baixa o PDF da auditoria de um AR com um clique**.
+Painel web em Google Apps Script que lê direto as planilhas de respostas do Google Forms (Filiais e Central de Relacionamento). Com ele o gestor **baixa o PDF da auditoria de um AR com um clique**, e só quem foi liberado vê os dados.
 
-- **Auditorias**: lista com os botões **Ver** (prévia do relatório) e **PDF**, além de **Baixar PDF das filtradas** (um arquivo, uma auditoria por página).
-- **Por AR**: média, menor nota e última auditoria de cada AR. O botão **PDF** baixa todas as auditorias daquele AR.
-- **Perguntas**: aproveitamento de cada item (do pior para o melhor) e evolução mensal da nota.
-- **Evolução por Filial** (ou por Equipe, na Central): tabela filial × mês e ranking com a linha da meta.
-- Filtros: Regional, Filial, AR, Auditor, Mês e período. Cada lista mostra só o que existe dentro dos outros filtros.
-- O relatório PDF tem layout próprio para impressão. Os **Pontos de Auditoria** mantêm as quebras de linha, os títulos ("Pontos fortes:", "1. Diagnóstico…") ficam em negrito e os itens com "-" viram marcadores.
+- **Auditorias**: lista com os botões **Ver** (prévia) e **PDF**, além de **Baixar PDF das filtradas**.
+- **Por AR**: média, menor nota e última auditoria de cada AR. O botão **PDF** junta todas as auditorias do AR.
+- **Perguntas**: aproveitamento de cada item (do pior para o melhor) e evolução mensal.
+- **Evolução por Filial** (por Equipe, na Central): tabela filial × mês e ranking com a linha da meta.
 
-Não tem custo nem servidor: o painel roda na conta Google de quem publica.
+## Segurança: como o acesso funciona
 
-## Arquivos
+1. **Login corporativo obrigatório.** O app é implantado como "Quem pode acessar: usuários do domínio". O Google pede o login da conta @ibeu.com.br, e ninguém de fora abre o link. O código também recusa qualquer e-mail de outro domínio (`CONFIG.dominio`).
+2. **Lista de pessoas autorizadas.** Só entra quem está na aba **Acessos** da planilha de controle. Quem não está vê "Você não tem acesso a este painel" e não recebe nenhum dado.
+3. **Restrição por painel e por filial ou equipe.** Cada linha da aba diz qual painel a pessoa vê e quais filiais ou equipes. O filtro roda **no servidor**: o navegador só recebe as linhas permitidas, e cada pedido de prévia ou de PDF é conferido de novo, então não adianta alterar a página para pedir outra auditoria.
+4. **Log.** Aberturas, visualizações, downloads e tentativas negadas vão para a aba **Log**, com data, e-mail, painel, AR e linhas.
+5. **As planilhas continuam fechadas.** O app roda com a conta de quem implantou, então os gestores **não** precisam (nem devem) ter acesso às planilhas do Forms ou ao código.
 
-| Arquivo | O que é |
-|---|---|
-| `Code.gs` | Lê a planilha, calcula as notas e gera o PDF. **O `CONFIG` fica no topo.** |
-| `Index.html` | O painel (abrindo direto no navegador, entra em modo demonstração com dados fictícios). |
-| `appsscript.json` | Manifesto: fuso de São Paulo e web app restrito ao domínio. |
+> Antes de publicar, confirme com o administrador do Google Workspace que o domínio permite web apps do Apps Script. Em algumas empresas isso é bloqueado no Admin Console.
 
-## Como publicar (≈10 min)
+## Planilha de controle
+
+Crie uma planilha nova (ex.: "Controle · Painel de Auditoria") e compartilhe **só** com quem administra os acessos.
+
+**Aba `Acessos`**: a primeira linha é o cabeçalho, e cada linha é uma pessoa em um painel.
+
+| E-mail | Painel | Filiais/Equipes | Ativo |
+|---|---|---|---|
+| diretora@ibeu.com.br | Ambos | Todas | Sim |
+| gestor.botafogo@ibeu.com.br | Filiais | Botafogo | Sim |
+| regional.sul@ibeu.com.br | Filiais | Botafogo, Copacabana, Ipanema, Leblon | Sim |
+| coord.central@ibeu.com.br | Central | Todas | Sim |
+| supervisor.whats@ibeu.com.br | Central | Equipe WhatsApp | Sim |
+
+- **Painel**: `Filiais`, `Central` ou `Ambos`.
+- **Filiais/Equipes**: `Todas` ou os nomes **iguais aos da planilha do Forms**, separados por vírgula. Acentos e maiúsculas não importam.
+- **Ativo**: `Não` bloqueia sem apagar a linha.
+- Para dar acesso a um painel inteiro e a só algumas filiais do outro, use duas linhas.
+- As mudanças levam **até 5 minutos** para valer (`CONFIG.cacheMinutos`).
+
+**Aba `Log`**: é criada sozinha no primeiro acesso.
+
+Proteja as duas abas em **Dados → Proteger páginas e intervalos**, deixando só você como editor.
+
+## Como publicar
 
 1. Abra a planilha de respostas das **Filiais** → **Extensões → Apps Script**.
-2. Apague o conteúdo de `Código.gs` e cole o conteúdo de `Code.gs`.
-3. Clique em **+ → HTML**, dê o nome `Index` (sem `.html`) e cole o conteúdo de `Index.html`.
-4. (Opcional) Em **Configurações do projeto**, marque "Mostrar arquivo de manifesto appsscript.json" e cole o conteúdo de `appsscript.json`.
-5. Ajuste o `CONFIG` no topo do `Code.gs`:
-   - `origens.filiais.aba`: nome da aba das respostas (ex.: `Respostas ao formulário 1`).
-   - `origens.central.planilhaId`: ID da planilha da Central (o trecho da URL entre `/d/` e `/edit`). Se não houver Central, apague o bloco `central`.
-   - `colunas`: se algum cabeçalho tiver nome diferente (ex.: "Nome do Atendente" em vez de "Nome do AR"), acrescente-o à lista do campo. A busca ignora acentos e maiúsculas.
-   - `pesos`: quanto vale cada resposta. Hoje "N/C" conta como ponto cheio (é o que bate com as médias do Power BI). Use `null` para que não conte nem a favor nem contra.
-   - `dataInicio` e `meta`.
-6. **Implantar → Nova implantação → App da Web**
+2. Crie estes arquivos e cole o conteúdo de cada um:
+   - `Code.gs`, `Relatorio.gs` e `Logo.gs` (arquivos de script);
+   - `Index` e `Negado` (arquivos HTML, criados em **+ → HTML**, sem digitar o `.html`).
+3. Em **Configurações do projeto**, marque "Mostrar arquivo de manifesto" e cole o `appsscript.json`.
+4. No topo do `Code.gs`, ajuste o `CONFIG`:
+   - `controle.planilhaId`: ID da planilha de controle (o trecho da URL entre `/d/` e `/edit`);
+   - `origens.central.planilhaId`: ID da planilha da Central;
+   - `aba` de cada origem: nome da aba de respostas;
+   - `colunas`: só se algum cabeçalho tiver nome diferente;
+   - `contatoAcesso`, `meta` e `dataInicio`.
+5. **Implantar → Nova implantação → App da Web**:
    - Executar como: **Eu**
-   - Quem pode acessar: **Qualquer pessoa em [sua empresa]**. Em conta Gmail pessoal, escolha "Qualquer pessoa com conta do Google".
-7. Autorize o acesso e copie a URL `/exec`. Esse é o link que vai para os gestores.
-   - Para abrir direto na Central: `.../exec?origem=central`
+   - Quem pode acessar: **Qualquer pessoa em IBEU** (a opção do domínio). Não escolha "Qualquer pessoa".
+6. Autorize, copie a URL `/exec` e envie só para as pessoas da aba Acessos. Para abrir direto na Central, use `.../exec?origem=central`.
 
-Os dados são lidos a cada abertura (ou ao clicar em **Atualizar**), então nada precisa ser sincronizado. Depois de editar o código, use **Implantar → Gerenciar implantações → Editar → Nova versão** para manter a mesma URL.
+Para atualizar sem mudar o link: **Implantar → Gerenciar implantações → Editar → Nova versão**.
 
-## Como as notas são calculadas
+## PDF (frente e verso)
 
-- Toda coluna cujo cabeçalho contém `(Vale X)` é uma pergunta que vale X pontos.
-- Nota da auditoria: usa a coluna "Nota" da planilha, se existir. Senão, é calculada como `pontos obtidos ÷ pontos possíveis × 100`.
-- A coluna "Nota média" da aba Perguntas é a média de pontos daquele item, e o aproveitamento é essa média ÷ Vale.
+- **Frente**: logo, nota, dados do atendimento e perguntas.
+- **Verso**: Pontos de Auditoria, com as quebras de linha preservadas, os títulos em negrito e os marcadores. Se o texto for longo, continua na folha seguinte.
+- Num PDF com várias auditorias, cada uma começa numa **frente**. Quando o verso ocupa um número par de páginas, entra uma página "em branco para impressão frente e verso". O número de páginas do verso é **estimado** pelo tamanho do texto (`REL_LINHAS_POR_PAGINA` em `Relatorio.gs`). Se notar desalinhamento com textos muito longos, ajuste esse número.
+- O rodapé traz "Confidencial · uso interno IBEU", a data e o e-mail de quem gerou o PDF.
+- O limite é de 60 auditorias por arquivo (`CONFIG.limitePdf`).
 
-## Observações
+## Notas
 
-- O PDF é gerado pelo próprio Google (`HTML → PDF`) e baixado direto, sem precisar de "Imprimir".
-- O limite é de 60 auditorias por arquivo. Para baixar mais, filtre por mês ou regional.
-- Quem tem o link vê todas as filiais. Se cada gestor só puder ver a própria filial, dá para restringir pelo e-mail de quem acessa (`Session.getActiveUser()`), mas é preciso montar uma aba com o mapeamento e-mail → filial.
+- Toda coluna com `(Vale X)` no cabeçalho é uma pergunta que vale X pontos.
+- A nota usa a coluna "Nota" da planilha, se existir. Senão, é calculada como `pontos ÷ pontos possíveis × 100`.
+- `CONFIG.pesos` define quanto vale cada resposta. N/C conta como ponto cheio; use `null` para que não conte.
+- Testes de permissão (simulam o Apps Script, sem precisar publicar): `node dashboard-auditoria/testes/teste-permissoes.js`.
+- **Regra para quem mexer no código:** no Apps Script, toda função cujo nome não termina com `_` pode ser chamada pelo navegador. Só `doGet`, `listarOrigens`, `getDados`, `previaRelatorio` e `gerarPdf` são públicas, e todas conferem o usuário logado. O teste falha se aparecer outra função pública.
