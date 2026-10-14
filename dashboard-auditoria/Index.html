@@ -15,7 +15,7 @@
   body { margin: 0; background: var(--fundo); color: var(--texto);
          font: 14px/1.45 "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   button, select, input { font: inherit; }
-  .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 
   header.topo { background: var(--navy); color: #fff; }
   header.topo .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding-top: 12px; padding-bottom: 12px; }
@@ -505,7 +505,11 @@ async function baixarPdf(lista) {
   }
   const nome = nomeArquivo(lista);
   const html = montarRelatorio(lista, false);
-  if (MODO_DEMO) { imprimir(html); return; }
+  if (MODO_DEMO) {
+    abrirModal(`Prévia do PDF · ${lista.length} auditoria(s)`, lista, nome);
+    toast('Demonstração: no app publicado este botão baixa o PDF direto.', 4500);
+    return;
+  }
   toast(lista.length > 1 ? `Gerando PDF com ${lista.length} auditorias…` : 'Gerando PDF…', 60000);
   try {
     const r = await chamar('gerarPdf', html, nome);
@@ -518,15 +522,6 @@ async function baixarPdf(lista) {
   } catch (e) {
     toast('Não foi possível gerar o PDF: ' + (e && e.message || e), 6000);
   }
-}
-
-// Modo demo: abre o diálogo de impressão do navegador ("Salvar como PDF")
-function imprimir(html) {
-  const f = document.createElement('iframe');
-  f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
-  document.body.appendChild(f);
-  f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast('Use a pré-visualização (Ver) e imprima com Ctrl+P.', 5000); } setTimeout(() => f.remove(), 2000); };
-  f.srcdoc = html;
 }
 
 /* ===================== relatório (HTML → PDF) ======================== */
