@@ -27,7 +27,7 @@ ABAS_ENTRADA = {
     'REGULARES': 'BaseDisparo_Regulares.xlsx',
 }
 
-# Ordem de prioridade: primeiro celular válido encontrado é o usado (fixo só se não houver celular)
+# Ordem de prioridade: primeiro celular válido encontrado é o usado (quem só tem fixo é removido)
 COLUNAS_TELEFONE = [
     'TELEFONE 1 ALUNO',
     'TELEFONE 2 ALUNO',
@@ -120,6 +120,7 @@ def processar_aba(aba):
         "Original": qtd_original,
         "Nomes_Invalidos": 0,
         "Sem_Telefone": 0,
+        "Somente_Fixo": 0,
         "Duplicados": 0,
         "Outra_Base": 0
     }
@@ -138,6 +139,11 @@ def processar_aba(aba):
 
     df_ativos = df_ativos[df_ativos['Telefone_Limpo'] != '']
     metricas["Sem_Telefone"] = qtd_atual - len(df_ativos)
+    qtd_atual = len(df_ativos)
+
+    # Disparo só vai para celular: quem tem apenas telefone fixo sai
+    df_ativos = df_ativos[df_ativos['Telefone_Limpo'].apply(is_celular)]
+    metricas["Somente_Fixo"] = qtd_atual - len(df_ativos)
     qtd_atual = len(df_ativos)
 
     # ---------- APLICAÇÃO DO MOLDE FILIAIS ----------
@@ -212,6 +218,7 @@ for aba, (df_molde, metricas) in bases.items():
     print(f"📉 Total Original ({aba}): {metricas['Original']} alunos")
     print(f"❌ Nomes Inválidos: -{metricas['Nomes_Invalidos']}")
     print(f"❌ Sem Telefone Válido (aluno e responsáveis): -{metricas['Sem_Telefone']}")
+    print(f"☎️ Somente Telefone Fixo (sem nenhum celular): -{metricas['Somente_Fixo']}")
     print(f"👯 Cortados por Duplicação (RA/Telefone): -{metricas['Duplicados']}")
     print(f"🔁 Cortados por já estarem em outra base (RA/Nome/Telefone): -{metricas['Outra_Base']}")
     print("-" * 60)
