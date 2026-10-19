@@ -27,6 +27,11 @@ ABAS_ENTRADA = {
     'REGULARES': 'BaseDisparo_Regulares.xlsx',
 }
 
+# Níveis (coluna NIVEL) que não entram no disparo, por aba
+NIVEIS_EXCLUIDOS = {
+    'REGULARES': ['A3', 'A4', 'MF2', 'IFMF2'],
+}
+
 # Ordem de prioridade: primeiro celular válido encontrado é o usado (quem só tem fixo é removido)
 COLUNAS_TELEFONE = [
     'TELEFONE 1 ALUNO',
@@ -118,12 +123,19 @@ def processar_aba(aba):
 
     metricas = {
         "Original": qtd_original,
+        "Niveis_Excluidos": 0,
         "Nomes_Invalidos": 0,
         "Sem_Telefone": 0,
         "Somente_Fixo": 0,
         "Duplicados": 0,
         "Outra_Base": 0
     }
+
+    # ---------- EXCLUSÃO DE NÍVEIS ----------
+    niveis_excluidos = NIVEIS_EXCLUIDOS.get(aba, [])
+    df_ativos = df_ativos[~df_ativos['NIVEL'].astype(str).str.strip().str.upper().isin(niveis_excluidos)]
+    metricas["Niveis_Excluidos"] = qtd_atual - len(df_ativos)
+    qtd_atual = len(df_ativos)
 
     # ---------- LIMPEZA DE FORMATOS ----------
     df_ativos['RA'] = df_ativos['NOME'].astype(str).str.extract(r'\((\d+)\)')[0]
@@ -216,6 +228,8 @@ for aba, (df_molde, metricas) in bases.items():
     print("\n📊 RELATÓRIO DE EXCLUSÕES (O FUNIL):")
     print("-" * 60)
     print(f"📉 Total Original ({aba}): {metricas['Original']} alunos")
+    if NIVEIS_EXCLUIDOS.get(aba):
+        print(f"🚫 Níveis Excluídos ({', '.join(NIVEIS_EXCLUIDOS[aba])}): -{metricas['Niveis_Excluidos']}")
     print(f"❌ Nomes Inválidos: -{metricas['Nomes_Invalidos']}")
     print(f"❌ Sem Telefone Válido (aluno e responsáveis): -{metricas['Sem_Telefone']}")
     print(f"☎️ Somente Telefone Fixo (sem nenhum celular): -{metricas['Somente_Fixo']}")
