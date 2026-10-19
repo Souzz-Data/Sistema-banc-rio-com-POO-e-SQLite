@@ -29,7 +29,7 @@ ABAS_ENTRADA = {
 
 # Níveis (coluna NIVEL) que não entram no disparo, por aba
 NIVEIS_EXCLUIDOS = {
-    'REGULARES': ['A3', 'A4', 'MF2', 'IFMF2'],
+    'REGULARES': ['A3', 'A4', 'MF1', 'MF2', 'IFMF1', 'IFMF2'],
 }
 
 # Ordem de prioridade: primeiro celular válido encontrado é o usado (quem só tem fixo é removido)
