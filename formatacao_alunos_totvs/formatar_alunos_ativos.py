@@ -23,19 +23,19 @@ if not os.path.exists(caminho_output):
 # Cada aba vira uma base separada (mensagens de disparo diferentes).
 # A primeira tem prioridade: quem estiver nela é retirado das seguintes.
 ABAS_ENTRADA = {
-    'MC e TEENS 4': 'BaseDisparo_MC_e_Teens.xlsx',
-    'REGULARES': 'BaseDisparo_Regulares.xlsx',
+    'Sheet': 'BaseDisparo_Alunos_Ativos.xlsx',
 }
 
 # Níveis (coluna NIVEL) que não entram no disparo, por aba
 NIVEIS_EXCLUIDOS = {
-    'REGULARES': ['A3', 'A4', 'MF1', 'MF2', 'IFMF1', 'IFMF2'],
+    'Sheet': ['A3', 'A4', 'MF1', 'MF2', 'IFMF1', 'IFMF2'],
 }
 
 # Ordem de prioridade: primeiro celular válido encontrado é o usado (quem só tem fixo é removido)
 COLUNAS_TELEFONE = [
     'TELEFONE 1 ALUNO',
     'TELEFONE 2 ALUNO',
+    'TELEFONE 3 ALUNO',
     'TELEFONE 1 RESP. FIN.',
     'TELEFONE 2 RESP. FIN.',
     'TELEFONE COMERCIAL RESP. FIN.',
