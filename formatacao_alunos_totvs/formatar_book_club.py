@@ -46,6 +46,19 @@ CONTATOS = {
 # Ordem de busca do contato (só celular; fixo nunca entra)
 ORDEM_MENOR = ['Resp. Fin.', 'Resp. Acad.']
 ORDEM_ADULTO = ['Resp. Fin.', 'Aluno', 'Resp. Acad.']
+# Adulto cujo pagante é empresa: usa o contato do próprio aluno (nunca o da empresa)
+ORDEM_ADULTO_EMPRESA = ['Aluno', 'Resp. Acad.']
+
+# Pagante pessoa jurídica (empresa/escola que paga o curso)
+PADRAO_EMPRESA = r'\bLTDA\b|\bS\.?\s?A\.?$|S/A|EIRELI|ESCOLA|CORRETORA|COMPANY|EMPRESA|CONSULTING|CONSULTORIA'
+
+# Campanha é para alunos acima de 12 anos
+IDADE_MINIMA = 13
+
+# Nome da filial no TOTVS -> nome usado nas Tags
+RENOMEAR_FILIAIS = {
+    'INSTITUTO BRASIL ESTADOS UNIDOS': 'IBEU AT HOME',
+}
 
 # Segmento a partir da coluna CURSO (primeira regra que bater)
 SEGMENTOS = [
@@ -109,6 +122,13 @@ def is_celular(numero):
     # 55 + DDD + 9 dígitos começando com 9
     return len(numero) == 13 and numero[4] == '9'
 
+def idade_maxima(faixa):
+    # "06 - 12 ANOS" -> 12 | "05 ou - ANOS" -> 5 | "61 ou + ANOS" -> sem limite
+    faixa_str = str(faixa).upper()
+    numeros = [int(n) for n in re.findall(r'\d+', faixa_str)]
+    if not numeros or 'OU +' in faixa_str: return 999
+    return max(numeros)
+
 def is_menor(faixa):
     # "13 - 17 ANOS" -> menor | "18 - 25 ANOS" / "61 ou + ANOS" -> adulto | "05 ou - ANOS" -> menor
     faixa_str = str(faixa).upper()
@@ -157,13 +177,22 @@ except FileNotFoundError as e:
 df.columns = [str(c).strip() for c in df.columns]
 qtd_original = len(df)
 
+df = df[df['FAIXA ETÁRIA'].apply(idade_maxima) >= IDADE_MINIMA]
+qtd_abaixo_idade = qtd_original - len(df)
+
 # ==========================================
 # 4. MONTAGEM DOS DADOS POR ALUNO
 # ==========================================
 registros = []
+qtd_empresa = 0
 for _, linha in df.iterrows():
     menor = is_menor(linha.get('FAIXA ETÁRIA'))
-    celular, origem_cel, email, origem_email = buscar_contato(linha, ORDEM_MENOR if menor else ORDEM_ADULTO)
+    pagante_empresa = bool(re.search(PADRAO_EMPRESA, str(linha.get('NOME RESP FIN', '')).upper()))
+    if menor: ordem = ORDEM_MENOR
+    elif pagante_empresa: ordem = ORDEM_ADULTO_EMPRESA
+    else: ordem = ORDEM_ADULTO
+    celular, origem_cel, email, origem_email = buscar_contato(linha, ordem)
+    qtd_empresa += int(pagante_empresa and not menor)
 
     # Nome do pagante; se não houver, usa o nome de quem forneceu o contato
     responsavel = nome_do_grupo(linha, 'Resp. Fin.')
@@ -173,7 +202,7 @@ for _, linha in df.iterrows():
     nome_aluno = str(linha.get('NOME', '')).strip()
     ra = re.search(r'\((\d+)\)', nome_aluno)
     registros.append({
-        'Filial': str(linha.get('FILIAL', '')).strip(),
+        'Filial': RENOMEAR_FILIAIS.get(str(linha.get('FILIAL', '')).strip(), str(linha.get('FILIAL', '')).strip()),
         'Segmento': definir_segmento(linha.get('CURSO')),
         'Curso': str(linha.get('CURSO', '')).strip(),
         'Nível': str(linha.get('NIVEL', '')).strip(),
@@ -281,6 +310,8 @@ print("="*60)
 print("\n📊 RELATÓRIO:")
 print("-" * 60)
 print(f"📉 Total de alunos na base: {qtd_original}")
+print(f"🚫 Abaixo de {IDADE_MINIMA} anos (removidos): -{qtd_abaixo_idade}")
+print(f"🏢 Adultos com pagante empresa (contato do próprio aluno): {qtd_empresa}")
 print(f"🧒 Menores (contato do Resp. Fin./Acad.): {(df_detalhe['Idade'] == 'Menor').sum()}")
 print(f"🧑 Adultos (Resp. Fin. → Aluno → Resp. Acad.): {(df_detalhe['Idade'] == 'Adulto').sum()}")
 print(f"☎️ Sem celular (só fixo ou sem telefone): {sem_celular}")
