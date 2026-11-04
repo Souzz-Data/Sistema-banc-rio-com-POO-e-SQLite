@@ -51,6 +51,29 @@ def nome_comparacao(nome):
     nome_str = unicodedata.normalize('NFKD', nome_str).encode('ascii', 'ignore').decode()
     return re.sub(r'\s+', ' ', nome_str).strip()
 
+def formatar_telefone(telefone):
+    if pd.isna(telefone) or str(telefone).strip() in ['', '(Vazias)', 'nan']:
+        return ''
+    telefone_str = str(telefone).strip()
+    if telefone_str.startswith('+') and not telefone_str.startswith('+55'):
+        return ''
+    numeros = re.sub(r'\D', '', telefone_str)
+    if not numeros: return ''
+    if numeros.startswith('0'): numeros = numeros[1:]
+    if numeros.startswith('55') and len(numeros) in [12, 13]: pass 
+    elif len(numeros) in [10, 11]: numeros = '55' + numeros
+    elif len(numeros) in [8, 9]: numeros = '5521' + numeros
+    else: return ''
+    return numeros
+
+def limpar_email(email):
+    if pd.isna(email):
+        return ''
+    for parte in str(email).strip().split():
+        if re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', parte):
+            return parte.lower()
+    return ''
+
 def limpar_ra(ra):
     return re.sub(r'\D', '', str(ra)) if pd.notna(ra) else ''
 
@@ -83,12 +106,25 @@ df_forms['Nome_Forms'] = df_forms[COL_FORMS_NOME].apply(nome_comparacao)
 df_forms['Nome_TOTVS'] = df_forms['RA_Limpo'].map(nome_por_ra).fillna('')
 nomes_renovados = (set(df_forms['Nome_TOTVS']) | set(df_forms['Nome_Forms'])) - {''}
 
+# Contatos da família de quem renovou (aluno e responsáveis): quem dividir
+# telefone ou e-mail com eles é irmão/parente e já sabe da renovação
+df_renovados_totvs = df_totvs[df_totvs['RA'].isin(set(df_forms['RA_Limpo'])) | df_totvs['Nome_Comparacao'].isin(nomes_renovados)]
+colunas_tel = [c for c in df_totvs.columns if c.startswith('TELEFONE') and 'FAX' not in c]
+colunas_email = [c for c in df_totvs.columns if c.startswith('EMAIL')]
+telefones_familia = set(df_renovados_totvs[colunas_tel].map(formatar_telefone).values.ravel()) - {''}
+emails_familia = set(df_renovados_totvs[colunas_email].map(limpar_email).values.ravel()) - {''}
+
 # ==========================================
 # 5. CORTES NA BASE DE DISPARO
 # ==========================================
 renovado = df_disparo['Nome_Comparacao'].isin(nomes_renovados)
 df_limpo = df_disparo[~renovado]
 qtd_renovados = renovado.sum()
+
+familia = df_limpo['Telefone'].astype(str).isin(telefones_familia) | df_limpo['E-mail'].apply(limpar_email).isin(emails_familia)
+df_familia = df_limpo[familia]
+df_limpo = df_limpo[~familia]
+qtd_familia = familia.sum()
 
 filial_excluida = df_limpo['Tags'].astype(str).str.strip().str.upper().isin(FILIAIS_EXCLUIDAS)
 df_limpo = df_limpo[~filial_excluida]
@@ -126,6 +162,9 @@ print("-" * 60)
 print(f"📉 Total Original: {qtd_original} contatos")
 print(f"📝 Respostas no Forms de renovação: {len(df_forms)} ({df_forms['RA_Limpo'].replace('', pd.NA).nunique()} RAs)")
 print(f"🔁 Cortados por já terem RENOVADO: -{qtd_renovados}")
+print(f"👨‍👩‍👧 Cortados por ter IRMÃO/FAMILIAR renovado (mesmo telefone ou e-mail): -{qtd_familia}")
+for _, l in df_familia.iterrows():
+    print(f"     • {l['Nome']} ({l['Tags']})")
 print(f"🏢 Cortados por filial excluída ({', '.join(FILIAIS_EXCLUIDAS)}): -{qtd_filiais}")
 print(f"🔎 Renovados que não estavam no disparo: {len(df_nao_encontrados)}")
 print("-" * 60)
