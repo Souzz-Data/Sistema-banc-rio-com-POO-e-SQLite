@@ -92,11 +92,14 @@ df = pd.read_excel(arquivo_entrada, header=linha_cabecalho, dtype=str).dropna(ax
 df.columns = [str(c).strip() for c in df.columns]
 df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
 df = df[df['FILIAL'].astype(str).str.strip().str.upper() != 'TOTAL GERAL']
+# Linhas de subtotal da tabela dinâmica ("ALUNO ATIVO Total") e linhas em branco
+df = df[~df['STATUS'].astype(str).str.upper().str.contains('TOTAL')]
 
 # Células mescladas: a linha em branco repete a filial/aluno da linha de cima
 df['FILIAL'] = df['FILIAL'].ffill().str.strip()
 df['NOME'] = df['NOME'].ffill().str.strip()
 df['FILIAL'] = df['FILIAL'].replace(RENOMEAR_FILIAIS)
+df = df[df['NIVEL'].notna()]
 df['NIVEL'] = df['NIVEL'].astype(str).str.strip().str.upper()
 df['RA'] = df['NOME'].str.extract(r'\((\d+)\)')[0]
 df['Nome_Comparacao'] = df['NOME'].apply(nome_comparacao)
@@ -137,6 +140,7 @@ for chave, grupo_linhas in df_sel.groupby(df_sel['RA'].fillna(df_sel['Nome_Compa
         'RA': linha['RA'] if pd.notna(linha['RA']) else '',
         'Aluno': limpar_nome(linha['NOME']),
         'Faixa Etária': str(linha['FAIXA ETÁRIA']).strip(),
+        'Status': juntar(grupo_linhas['STATUS'].str.strip()),
         'E-mail do Aluno': email_aluno,
         'Responsável Financeiro': nome_pessoa(linha['NOME RESP FIN']),
         'E-mail Resp. Financeiro': email_fin,
@@ -168,7 +172,7 @@ COR_ZEBRA = 'EAF1F8'
 COR_SEM_EMAIL = 'FCE4D6'
 borda = Border(bottom=Side(style='thin', color='BFBFBF'))
 
-def formatar_aba(ws, df_aba):
+def formatar_aba(ws, df_aba, sem_email=None):
     ws.freeze_panes = 'A2'
     ws.auto_filter.ref = ws.dimensions
     ws.sheet_view.showGridLines = False
@@ -179,10 +183,9 @@ def formatar_aba(ws, df_aba):
         cel.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     ws.row_dimensions[1].height = 30
 
-    col_todos = list(df_aba.columns).index('Todos os E-mails') if 'Todos os E-mails' in df_aba.columns else None
     for i, linha in enumerate(ws.iter_rows(min_row=2), start=0):
-        sem_email = col_todos is not None and not linha[col_todos].value
-        cor = COR_SEM_EMAIL if sem_email else (COR_ZEBRA if i % 2 else None)
+        destacar = sem_email is not None and sem_email[i]
+        cor = COR_SEM_EMAIL if destacar else (COR_ZEBRA if i % 2 else None)
         for cel in linha:
             cel.border = borda
             cel.alignment = Alignment(vertical='center')
@@ -196,9 +199,14 @@ def formatar_aba(ws, df_aba):
         maior = max([len(str(coluna))] + [len(str(v)) for v in df_aba[coluna].fillna('')])
         ws.column_dimensions[letra].width = min(max(maior + 3, 10), 60)
 
+# Colunas de uso interno que não vão para a planilha
+COLUNAS_OCULTAS = ['Todos os E-mails']
+
 def escrever_aba(writer, nome_aba, df_aba):
+    sem_email = (df_aba['Todos os E-mails'] == '').tolist() if 'Todos os E-mails' in df_aba.columns else None
+    df_aba = df_aba.drop(columns=[c for c in COLUNAS_OCULTAS if c in df_aba.columns])
     df_aba.to_excel(writer, sheet_name=nome_aba, index=False)
-    formatar_aba(writer.sheets[nome_aba], df_aba)
+    formatar_aba(writer.sheets[nome_aba], df_aba, sem_email)
 
 arquivo_saida = os.path.join(caminho_output, NOME_SAIDA)
 with pd.ExcelWriter(arquivo_saida, engine='openpyxl') as writer:
@@ -226,6 +234,7 @@ for grupo in ORDEM_GRUPOS:
     print(f"🎓 {grupo}: {(df_final['Grupo'] == grupo).sum()} aluno(s)")
 print(f"✅ Extras encontrados: {', '.join(extras_encontrados) or '-'}")
 print(f"❌ Extras NÃO encontrados: {', '.join(extras_nao_encontrados) or '-'}")
+print(f"🎗️ Bolsistas: {df_final['Status'].str.contains('BOLSISTA').sum()}")
 print(f"📧 Alunos sem nenhum e-mail: {(df_final['Todos os E-mails'] == '').sum()}")
 print("-" * 60)
 print(f"🚀 TOTAL DE FORMANDOS: {len(df_final)} | E-MAILS ÚNICOS: {len(df_emails)}")
