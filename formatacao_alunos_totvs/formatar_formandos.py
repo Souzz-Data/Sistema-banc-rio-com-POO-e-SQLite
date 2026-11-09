@@ -113,17 +113,17 @@ except FileNotFoundError as e:
     exit()
 
 def buscar_turma(ra, niveis, filial):
-    """Turma do aluno no DEPARA; prioriza matrícula ativa na mesma filial (ignora transferências)."""
-    if df_depara is None:
-        return '', ''
+    """Turma do aluno no DEPARA: só vale a matrícula ATIVA (transferido/desistente não conta).
+    Retorna (turma, situação, filial onde está ativo)."""
     cand = df_depara[(df_depara['RA'] == ra) & (df_depara['NIVEL'].isin(niveis))]
     if cand.empty:
-        return 'NÃO ENCONTRADA', ''
-    ativo = cand['STATUS'].str.contains('ATIVO', na=False)
-    mesma_filial = cand['FILIAL'] == filial
-    cand = cand.assign(prioridade=ativo.astype(int) * 2 + mesma_filial.astype(int)).sort_values('prioridade', ascending=False)
-    melhor = cand.iloc[0]
-    return str(melhor['TURMA']).strip(), str(melhor['STATUS']).strip()
+        return 'NÃO ENCONTRADA', 'SEM TURMA NO DEPARA', filial
+    ativos = cand[cand['STATUS'].str.contains('ATIVO', na=False)]
+    if ativos.empty:
+        situacoes = juntar(cand['STATUS'].str.strip())
+        return juntar(cand['TURMA'].str.strip()), situacoes, filial
+    melhor = ativos.iloc[0]
+    return str(melhor['TURMA']).strip(), str(melhor['STATUS']).strip(), melhor['FILIAL']
 
 # ==========================================
 # 4. SELEÇÃO DOS FORMANDOS
@@ -173,10 +173,17 @@ for chave, grupo_linhas in df_sel.groupby(df_sel['RA'].fillna(df_sel['Nome_Compa
     })
 
 df_final = pd.DataFrame(registros)
+df_fora = pd.DataFrame()
 if df_depara is not None:
     turmas = df_final.apply(lambda l: buscar_turma(l['RA'], l['Nível'].split('; '), l['Filial']), axis=1)
-    df_final['Turma'] = [t for t, _ in turmas]
-    df_final['Situação na Turma'] = [st for _, st in turmas]
+    df_final['Turma'] = [t for t, _, _ in turmas]
+    df_final['Situação na Turma'] = [st for _, st, _ in turmas]
+    # Filial passa a ser a da matrícula ativa (desconsidera a de transferência)
+    df_final['Filial'] = [f for _, _, f in turmas]
+    # Quem não está ativo na turma (desistente, transferido, cancelado) não é formando
+    ativo = df_final['Situação na Turma'].str.contains('ATIVO') & ~df_final['Situação na Turma'].str.contains('CANCELADA')
+    df_fora = df_final[~ativo]
+    df_final = df_final[ativo]
 else:
     df_final = df_final.drop(columns=['Turma', 'Situação na Turma'])
 df_final['Grupo'] = pd.Categorical(df_final['Grupo'], ORDEM_GRUPOS, ordered=True)
@@ -247,6 +254,8 @@ with pd.ExcelWriter(arquivo_saida, engine='openpyxl') as writer:
     escrever_aba(writer, 'Lista de E-mails', df_emails)
     if len(df_nao_encontrados):
         escrever_aba(writer, 'Não Encontrados', df_nao_encontrados)
+    if len(df_fora):
+        escrever_aba(writer, 'Retirados', df_fora[['Filial', 'Grupo', 'Nível', 'Turma', 'Situação na Turma', 'RA', 'Aluno']])
 
 # ==========================================
 # 7. RELATÓRIO
@@ -264,10 +273,9 @@ for grupo in ORDEM_GRUPOS:
 print(f"✅ Extras encontrados: {', '.join(extras_encontrados) or '-'}")
 print(f"❌ Extras NÃO encontrados: {', '.join(extras_nao_encontrados) or '-'}")
 if df_depara is not None:
-    nao_ativos = df_final[~df_final['Situação na Turma'].str.contains('ATIVO')]
-    print(f"🏫 Turma encontrada: {(df_final['Turma'] != 'NÃO ENCONTRADA').sum()} de {len(df_final)}")
-    for _, l in nao_ativos.iterrows():
-        print(f"     ⚠️ {l['Aluno']} ({l['Filial']}) — turma {l['Turma']}: {l['Situação na Turma'] or 'sem turma'}")
+    print(f"🏫 Turma ativa encontrada: {len(df_final)} | Retirados por não estarem ativos na turma: -{len(df_fora)}")
+    for _, l in df_fora.iterrows():
+        print(f"     ❌ {l['Aluno']} ({l['Filial']}) — turma {l['Turma']}: {l['Situação na Turma']}")
 print(f"🎗️ Bolsistas: {df_final['Status'].str.contains('BOLSISTA').sum()}")
 print(f"📧 Alunos sem nenhum e-mail: {(df_final['Todos os E-mails'] == '').sum()}")
 print("-" * 60)
