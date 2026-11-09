@@ -12,12 +12,15 @@ warnings.filterwarnings('ignore')
 # ==========================================
 # 1. DEFINIÇÃO DE CAMINHOS FIXOS
 # ==========================================
-# Uso: python formatar_formandos.py [planilha_entrada.xlsx] [pasta_saida]
+# Uso: python formatar_formandos.py [planilha_entrada.xlsx] [pasta_saida] [depara_turmas.xlsx]
 arquivo_entrada = r"C:\Users\everton.araujo\Desktop\Disparo_Limpeza\Base_Ativos\Formandos_2026.2.xlsx"
 caminho_output = r"C:\Users\everton.araujo\Desktop\Disparo_Limpeza"
+# Export do TOTVS do mesmo semestre com a coluna TURMA (opcional)
+arquivo_depara = ''
 
 if len(sys.argv) > 1: arquivo_entrada = sys.argv[1]
 if len(sys.argv) > 2: caminho_output = sys.argv[2]
+if len(sys.argv) > 3: arquivo_depara = sys.argv[3]
 
 if not os.path.exists(caminho_output):
     os.makedirs(caminho_output)
@@ -79,30 +82,48 @@ def juntar(valores):
 # ==========================================
 # 3. LEITURA (EXPORT EM TABELA DINÂMICA DO TOTVS)
 # ==========================================
+def ler_totvs(arquivo):
+    bruto = pd.read_excel(arquivo, header=None, dtype=str)
+
+    # O cabeçalho real é a linha que tem a célula "FILIAL"
+    linha_cabecalho = bruto.index[bruto.apply(lambda l: (l.astype(str).str.strip() == 'FILIAL').any(), axis=1)][0]
+    df = pd.read_excel(arquivo, header=linha_cabecalho, dtype=str).dropna(axis=1, how='all')
+    df.columns = [str(c).strip() for c in df.columns]
+    df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
+    df = df[df['FILIAL'].astype(str).str.strip().str.upper() != 'TOTAL GERAL']
+    # Linhas de subtotal da tabela dinâmica ("ALUNO ATIVO Total") e linhas em branco
+    df = df[~df['STATUS'].astype(str).str.upper().str.contains('TOTAL')]
+
+    # Células mescladas: a linha em branco repete a filial/aluno da linha de cima
+    df['FILIAL'] = df['FILIAL'].ffill().str.strip()
+    df['NOME'] = df['NOME'].ffill().str.strip()
+    df['FILIAL'] = df['FILIAL'].replace(RENOMEAR_FILIAIS)
+    df = df[df['NIVEL'].notna()]
+    df['NIVEL'] = df['NIVEL'].astype(str).str.strip().str.upper()
+    df['RA'] = df['NOME'].str.extract(r'\((\d+)\)')[0]
+    df['Nome_Comparacao'] = df['NOME'].apply(nome_comparacao)
+    return df
+
 print("Lendo base de formandos (TOTVS)...")
 try:
-    bruto = pd.read_excel(arquivo_entrada, header=None, dtype=str)
+    df = ler_totvs(arquivo_entrada)
+    df_depara = ler_totvs(arquivo_depara) if arquivo_depara else None
 except FileNotFoundError as e:
     print(f"❌ Erro ao ler a base: {e}")
     exit()
 
-# O cabeçalho real é a linha que tem a célula "FILIAL"
-linha_cabecalho = bruto.index[bruto.apply(lambda l: (l.astype(str).str.strip() == 'FILIAL').any(), axis=1)][0]
-df = pd.read_excel(arquivo_entrada, header=linha_cabecalho, dtype=str).dropna(axis=1, how='all')
-df.columns = [str(c).strip() for c in df.columns]
-df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
-df = df[df['FILIAL'].astype(str).str.strip().str.upper() != 'TOTAL GERAL']
-# Linhas de subtotal da tabela dinâmica ("ALUNO ATIVO Total") e linhas em branco
-df = df[~df['STATUS'].astype(str).str.upper().str.contains('TOTAL')]
-
-# Células mescladas: a linha em branco repete a filial/aluno da linha de cima
-df['FILIAL'] = df['FILIAL'].ffill().str.strip()
-df['NOME'] = df['NOME'].ffill().str.strip()
-df['FILIAL'] = df['FILIAL'].replace(RENOMEAR_FILIAIS)
-df = df[df['NIVEL'].notna()]
-df['NIVEL'] = df['NIVEL'].astype(str).str.strip().str.upper()
-df['RA'] = df['NOME'].str.extract(r'\((\d+)\)')[0]
-df['Nome_Comparacao'] = df['NOME'].apply(nome_comparacao)
+def buscar_turma(ra, niveis, filial):
+    """Turma do aluno no DEPARA; prioriza matrícula ativa na mesma filial (ignora transferências)."""
+    if df_depara is None:
+        return '', ''
+    cand = df_depara[(df_depara['RA'] == ra) & (df_depara['NIVEL'].isin(niveis))]
+    if cand.empty:
+        return 'NÃO ENCONTRADA', ''
+    ativo = cand['STATUS'].str.contains('ATIVO', na=False)
+    mesma_filial = cand['FILIAL'] == filial
+    cand = cand.assign(prioridade=ativo.astype(int) * 2 + mesma_filial.astype(int)).sort_values('prioridade', ascending=False)
+    melhor = cand.iloc[0]
+    return str(melhor['TURMA']).strip(), str(melhor['STATUS']).strip()
 
 # ==========================================
 # 4. SELEÇÃO DOS FORMANDOS
@@ -137,6 +158,8 @@ for chave, grupo_linhas in df_sel.groupby(df_sel['RA'].fillna(df_sel['Nome_Compa
         'Grupo': linha['Grupo'],
         'Curso': juntar(grupo_linhas['CURSO'].str.strip()),
         'Nível': juntar(grupo_linhas['NIVEL']),
+        'Turma': '',
+        'Situação na Turma': '',
         'RA': linha['RA'] if pd.notna(linha['RA']) else '',
         'Aluno': limpar_nome(linha['NOME']),
         'Faixa Etária': str(linha['FAIXA ETÁRIA']).strip(),
@@ -150,6 +173,12 @@ for chave, grupo_linhas in df_sel.groupby(df_sel['RA'].fillna(df_sel['Nome_Compa
     })
 
 df_final = pd.DataFrame(registros)
+if df_depara is not None:
+    turmas = df_final.apply(lambda l: buscar_turma(l['RA'], l['Nível'].split('; '), l['Filial']), axis=1)
+    df_final['Turma'] = [t for t, _ in turmas]
+    df_final['Situação na Turma'] = [st for _, st in turmas]
+else:
+    df_final = df_final.drop(columns=['Turma', 'Situação na Turma'])
 df_final['Grupo'] = pd.Categorical(df_final['Grupo'], ORDEM_GRUPOS, ordered=True)
 df_final = df_final.sort_values(['Grupo', 'Filial', 'Aluno']).reset_index(drop=True)
 df_final['Grupo'] = df_final['Grupo'].astype(str)
@@ -234,6 +263,11 @@ for grupo in ORDEM_GRUPOS:
     print(f"🎓 {grupo}: {(df_final['Grupo'] == grupo).sum()} aluno(s)")
 print(f"✅ Extras encontrados: {', '.join(extras_encontrados) or '-'}")
 print(f"❌ Extras NÃO encontrados: {', '.join(extras_nao_encontrados) or '-'}")
+if df_depara is not None:
+    nao_ativos = df_final[~df_final['Situação na Turma'].str.contains('ATIVO')]
+    print(f"🏫 Turma encontrada: {(df_final['Turma'] != 'NÃO ENCONTRADA').sum()} de {len(df_final)}")
+    for _, l in nao_ativos.iterrows():
+        print(f"     ⚠️ {l['Aluno']} ({l['Filial']}) — turma {l['Turma']}: {l['Situação na Turma'] or 'sem turma'}")
 print(f"🎗️ Bolsistas: {df_final['Status'].str.contains('BOLSISTA').sum()}")
 print(f"📧 Alunos sem nenhum e-mail: {(df_final['Todos os E-mails'] == '').sum()}")
 print("-" * 60)
